@@ -149,10 +149,25 @@ def send_discord_notification(payload_data):
                         for field in embed['fields']:
                             if 'value' in field and isinstance(field['value'], str):
                                 import re
+                                original_value = field['value']
+
                                 # Replace 4+ consecutive backticks with 3 (code block)
                                 field['value'] = re.sub(r'`{4,}', '```', field['value'])
                                 # Replace exactly 2 backticks with 1 (inline code)
                                 field['value'] = re.sub(r'(?<!`)``(?!`)', '`', field['value'])
+
+                                # Convert inline triple-backticks to single backticks
+                                # Pattern: ```text``` with no newlines inside → `text`
+                                field['value'] = re.sub(
+                                    r'```([^`\n]+)```',
+                                    r'`\1`',
+                                    field['value']
+                                )
+
+                                if original_value != field['value']:
+                                    print(f'  Fixed field "{field.get("name", "unknown")}"')
+                                    print(f'    Before: {original_value[:50]}')
+                                    print(f'    After:  {field["value"][:50]}')
 
                 print('Cleaned up empty embed fields and fixed malformed backticks')
 
