@@ -39,6 +39,9 @@ DISCORD_STATS_WEBHOOK_URL = os.environ.get('DISCORD_STATS_WEBHOOK_URL', '')
 USER_ID = os.environ.get('USER_ID')
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', '')
 
+# Security settings
+MAX_PAYLOAD_SIZE = 50 * 1024  # 50 KB - AOTR payloads are typically < 5 KB
+
 
 class handler(BaseHTTPRequestHandler):
     """Vercel serverless function handler."""
@@ -82,6 +85,17 @@ class handler(BaseHTTPRequestHandler):
 
             # Parse request body
             content_length = int(self.headers.get('Content-Length', 0))
+
+            # Check payload size (security measure against large spam payloads)
+            if content_length > MAX_PAYLOAD_SIZE:
+                print(f'❌ Payload too large: {content_length} bytes (max: {MAX_PAYLOAD_SIZE})')
+                self._send_json(413, {
+                    'error': 'Payload too large',
+                    'max_size': MAX_PAYLOAD_SIZE,
+                    'received_size': content_length
+                })
+                return
+
             body = self.rfile.read(content_length)
 
             # Log raw body for debugging
@@ -96,6 +110,19 @@ class handler(BaseHTTPRequestHandler):
             print('PARSED JSON PAYLOAD:')
             print(json.dumps(data, indent=2))
             print('=' * 80)
+
+            # Validate payload format (security measure)
+            is_valid, error_msg = validate_aotr_payload(data)
+            if not is_valid:
+                print(f'❌ Payload validation failed: {error_msg}')
+                self._send_json(400, {
+                    'error': 'Invalid payload format',
+                    'details': error_msg,
+                    'hint': 'Expected Discord webhook format with embeds'
+                })
+                return
+
+            print('✅ Payload validation passed')
 
             # Send entire payload to Discord for analysis and store stats
             success = send_discord_notification(data)
@@ -121,6 +148,56 @@ class handler(BaseHTTPRequestHandler):
             import traceback
             print(traceback.format_exc())
             self._send_json(500, {'error': str(e)})
+
+
+def validate_aotr_payload(payload_data):
+    """
+    Validate that the payload matches expected AOTR format.
+    Returns (is_valid, error_message).
+
+    Security: This prevents malicious/random data from being forwarded to Discord.
+    """
+    try:
+        # Must be a dictionary
+        if not isinstance(payload_data, dict):
+            return False, "Payload must be a JSON object"
+
+        # Must have either 'embeds' or 'content' (Discord webhook format)
+        if 'embeds' not in payload_data and 'content' not in payload_data:
+            return False, "Payload must contain 'embeds' or 'content' (Discord format)"
+
+        # If it has embeds, validate structure
+        if 'embeds' in payload_data:
+            if not isinstance(payload_data['embeds'], list):
+                return False, "'embeds' must be an array"
+
+            # Check each embed
+            for i, embed in enumerate(payload_data['embeds']):
+                if not isinstance(embed, dict):
+                    return False, f"Embed {i} must be an object"
+
+                # AOTR embeds should have at least a title or description
+                if 'title' not in embed and 'description' not in embed:
+                    return False, f"Embed {i} must have 'title' or 'description'"
+
+                # If it has fields, validate them
+                if 'fields' in embed:
+                    if not isinstance(embed['fields'], list):
+                        return False, f"Embed {i} 'fields' must be an array"
+
+                    for j, field in enumerate(embed['fields']):
+                        if not isinstance(field, dict):
+                            return False, f"Embed {i}, field {j} must be an object"
+
+                        # Discord fields must have name and value
+                        if 'name' not in field or 'value' not in field:
+                            return False, f"Embed {i}, field {j} must have 'name' and 'value'"
+
+        # Passed all validations
+        return True, None
+
+    except Exception as e:
+        return False, f"Validation error: {str(e)}"
 
 
 def send_discord_notification(payload_data):
