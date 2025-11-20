@@ -39,13 +39,21 @@ See [DEPLOY.md](DEPLOY.md) for detailed comparison and setup guides!
 
 ## Features
 
-- 🎮 Real-time Discord notifications
+- 🎮 Real-time Discord notifications for each run
+- 📊 **NEW**: Statistics dashboard with auto-updating charts
 - 💉 Serum detection alerts
-- ⭐ Mythic item alerts
+- ⭐ Special reward detection with emphasized ping
 - 🔔 Automatic user pinging
 - 🌐 Simple HTTP webhook endpoint
-- 🔒 Zero dependencies (no supply chain attacks)
-- 🔐 Optional webhook security with secrets
+- 🔒 Zero dependencies for basic operation
+- 🔐 Webhook security with secret token
+- 📈 Charts showing:
+  - Drops distribution (all-time)
+  - Special rewards (all-time)
+  - Completion time trend
+  - Level progress
+  - Gold earned
+  - Gems earned
 
 ## Prerequisites
 

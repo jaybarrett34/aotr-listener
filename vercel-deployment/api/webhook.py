@@ -8,9 +8,22 @@ Setup:
 2. Login: vercel login
 3. Deploy: vercel deploy
 4. Set environment variables in Vercel dashboard:
-   - DISCORD_WEBHOOK_URL
-   - USER_ID
-   - WEBHOOK_SECRET (optional)
+   - DISCORD_WEBHOOK_URL: Main channel for run-by-run logs
+   - DISCORD_STATS_WEBHOOK_URL: Stats channel for updating dashboard (optional)
+   - USER_ID: Discord user ID to ping
+   - WEBHOOK_SECRET: Secret token to secure webhook endpoint (generate a UUID)
+
+Features:
+- Forwards AOTR run notifications to Discord
+- Stores run statistics in SQLite database
+- Generates and updates a stats dashboard with charts:
+  * Drops distribution (all-time bar chart)
+  * Special rewards (all-time bar chart)
+  * Completion time trend (last 50 runs)
+  * Level progress (last 50 runs)
+  * Gold earned (last 50 runs)
+  * Gems earned (last 50 runs)
+- Special reward detection with emphasized ping
 """
 
 from http.server import BaseHTTPRequestHandler
@@ -22,6 +35,7 @@ from urllib.error import URLError, HTTPError
 
 # Get config from environment variables
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
+DISCORD_STATS_WEBHOOK_URL = os.environ.get('DISCORD_STATS_WEBHOOK_URL', '')
 USER_ID = os.environ.get('USER_ID')
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', '')
 
@@ -83,7 +97,7 @@ class handler(BaseHTTPRequestHandler):
             print(json.dumps(data, indent=2))
             print('=' * 80)
 
-            # Send entire payload to Discord for analysis
+            # Send entire payload to Discord for analysis and store stats
             success = send_discord_notification(data)
 
             if success:
@@ -110,8 +124,24 @@ class handler(BaseHTTPRequestHandler):
 
 
 def send_discord_notification(payload_data):
-    """Send notification to Discord - forwards AOTR's Discord payload directly."""
+    """
+    Send notification to Discord - forwards AOTR's Discord payload directly.
+    Also parses, stores, and updates statistics.
+    """
     try:
+        # Import database and stats modules
+        try:
+            from database import (
+                parse_aotr_payload,
+                save_run,
+                get_connection,
+                has_special_rewards
+            )
+            from stats_updater import send_or_update_stats_message
+            database_available = True
+        except ImportError as e:
+            print(f'⚠️ Database modules not available: {e}')
+            database_available = False
         # Log webhook URL (masked for security)
         if DISCORD_WEBHOOK_URL:
             masked_url = DISCORD_WEBHOOK_URL[:50] + '...' if len(DISCORD_WEBHOOK_URL) > 50 else DISCORD_WEBHOOK_URL
@@ -129,9 +159,33 @@ def send_discord_notification(payload_data):
         if is_discord_format:
             print('✅ Detected native Discord webhook format from AOTR')
 
+            # Parse and store run data if database is available
+            run_data = None
+            if database_available:
+                try:
+                    run_data = parse_aotr_payload(payload_data)
+                    if run_data:
+                        conn = get_connection()
+                        run_id = save_run(conn, run_data)
+                        conn.close()
+                        print(f'✅ Saved run data to database (ID: {run_id})')
+                    else:
+                        print('⚠️ Failed to parse AOTR payload')
+                except Exception as e:
+                    print(f'⚠️ Error saving run data: {e}')
+                    import traceback
+                    print(traceback.format_exc())
+
             # Use deep copy to avoid any reference issues
             import copy
             discord_payload = copy.deepcopy(payload_data)
+
+            # Rename title from "Tekkit Rewards Logger" to "AOTR Logger"
+            if 'embeds' in discord_payload:
+                for embed in discord_payload['embeds']:
+                    if 'title' in embed and 'Tekkit' in embed['title']:
+                        embed['title'] = embed['title'].replace('Tekkit Rewards Logger', 'AOTR Logger')
+                        print('Renamed title to "AOTR Logger"')
 
             # Clean up empty string fields and fix malformed markdown in embeds
             if 'embeds' in discord_payload:
@@ -171,10 +225,19 @@ def send_discord_notification(payload_data):
 
                 print('Cleaned up empty embed fields and fixed malformed backticks')
 
-            # Add user ping to content
+            # Add user ping to content, with special emphasis if special rewards exist
             if USER_ID:
                 existing_content = discord_payload.get('content', '')
                 ping = f'<@{USER_ID}>'
+
+                # Check if this run has special rewards
+                has_specials = run_data and has_special_rewards(run_data) if run_data else False
+
+                if has_specials:
+                    # Special rewards detected - emphasize the ping
+                    ping = f'🎉 {ping} **SPECIAL REWARD!** 🎉'
+                    print('⭐ Special rewards detected - adding emphasized ping')
+
                 # Add ping, preserving any existing content
                 if existing_content and existing_content.strip():
                     discord_payload['content'] = f'{ping} {existing_content}'
@@ -251,6 +314,19 @@ def send_discord_notification(payload_data):
                 print(f'Discord response status: {status}')
                 if status in (200, 204):
                     print('✅ Successfully sent to Discord')
+
+                    # Update stats message if webhook URL is configured
+                    if DISCORD_STATS_WEBHOOK_URL and database_available:
+                        try:
+                            print('Updating stats dashboard...')
+                            stats_success = send_or_update_stats_message(DISCORD_STATS_WEBHOOK_URL)
+                            if stats_success:
+                                print('✅ Stats dashboard updated')
+                            else:
+                                print('⚠️ Failed to update stats dashboard')
+                        except Exception as e:
+                            print(f'⚠️ Error updating stats: {e}')
+
                     return True
                 else:
                     print(f'⚠️ Unexpected status code: {status}')
