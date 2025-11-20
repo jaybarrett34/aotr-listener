@@ -18,7 +18,7 @@ import json
 import os
 from datetime import datetime
 from urllib import request as url_request
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
 # Get config from environment variables
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
@@ -101,6 +101,14 @@ class handler(BaseHTTPRequestHandler):
 def send_discord_notification(event_type, item_name, item_type, additional_info):
     """Send notification to Discord."""
     try:
+        # Log webhook URL (masked for security)
+        if DISCORD_WEBHOOK_URL:
+            masked_url = DISCORD_WEBHOOK_URL[:50] + '...' if len(DISCORD_WEBHOOK_URL) > 50 else DISCORD_WEBHOOK_URL
+            print(f'Discord webhook URL configured: {masked_url}')
+        else:
+            print('ERROR: DISCORD_WEBHOOK_URL is empty!')
+            return False
+
         # Emoji mapping
         emoji_map = {
             'serum': '💉',
@@ -136,6 +144,9 @@ def send_discord_notification(event_type, item_name, item_type, additional_info)
         # Add user ping if configured
         if USER_ID:
             payload['content'] = f'<@{USER_ID}>'
+            print(f'Pinging user: {USER_ID}')
+
+        print(f'Sending to Discord: {item_name} ({item_type})')
 
         # Send to Discord
         data = json.dumps(payload).encode('utf-8')
@@ -145,12 +156,29 @@ def send_discord_notification(event_type, item_name, item_type, additional_info)
             headers={'Content-Type': 'application/json'}
         )
 
-        with url_request.urlopen(req, timeout=10) as response:
-            return response.status in (200, 204)
+        try:
+            with url_request.urlopen(req, timeout=10) as response:
+                status = response.status
+                print(f'Discord response status: {status}')
+                if status in (200, 204):
+                    print('✅ Successfully sent to Discord')
+                    return True
+                else:
+                    print(f'⚠️ Unexpected status code: {status}')
+                    return False
+        except HTTPError as e:
+            # Discord returned an error - log details
+            error_body = e.read().decode('utf-8') if e.fp else 'No error body'
+            print(f'❌ Discord HTTPError {e.code}: {e.reason}')
+            print(f'Discord error details: {error_body}')
+            return False
 
     except URLError as e:
-        print(f'Failed to send Discord notification: {e}')
+        print(f'❌ URLError sending to Discord: {e}')
+        print(f'URLError reason: {e.reason if hasattr(e, "reason") else "unknown"}')
         return False
     except Exception as e:
-        print(f'Error: {e}')
+        print(f'❌ Unexpected error: {type(e).__name__}: {e}')
+        import traceback
+        print(f'Traceback: {traceback.format_exc()}')
         return False
