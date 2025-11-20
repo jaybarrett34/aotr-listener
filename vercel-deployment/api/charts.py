@@ -380,8 +380,7 @@ def create_gold_line_chart(runs: List[Dict]) -> str:
                 'yAxes': [{
                     'ticks': {
                         'beginAtZero': True,
-                        'fontColor': '#ffffff',
-                        'callback': '%%function(value) { return value.toLocaleString(); }%%'
+                        'fontColor': '#ffffff'
                     },
                     'gridLines': {
                         'color': 'rgba(255, 255, 255, 0.1)'
