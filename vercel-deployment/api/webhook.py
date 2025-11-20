@@ -110,7 +110,7 @@ class handler(BaseHTTPRequestHandler):
 
 
 def send_discord_notification(payload_data):
-    """Send notification to Discord with raw payload data."""
+    """Send notification to Discord - forwards AOTR's Discord payload directly."""
     try:
         # Log webhook URL (masked for security)
         if DISCORD_WEBHOOK_URL:
@@ -120,64 +120,61 @@ def send_discord_notification(payload_data):
             print('ERROR: DISCORD_WEBHOOK_URL is empty!')
             return False
 
-        # Format the JSON payload for Discord (limit to 1024 chars per field)
-        json_str = json.dumps(payload_data, indent=2)
+        # Check if this is already a Discord webhook payload
+        # AOTR sends Discord-formatted payloads with "embeds" and "content"
+        is_discord_format = isinstance(payload_data, dict) and (
+            'embeds' in payload_data or 'content' in payload_data
+        )
 
-        # Build description with payload preview
-        description = "**Received AOTR Webhook - Analyzing Payload Structure**\n\n"
-        description += f"*Total keys received:* `{len(payload_data) if isinstance(payload_data, dict) else 'N/A'}`\n"
+        if is_discord_format:
+            print('✅ Detected native Discord webhook format from AOTR')
+            # Use the payload as-is, just add user ping if configured
+            discord_payload = payload_data.copy()
 
-        # List all top-level keys
-        if isinstance(payload_data, dict):
-            keys_list = ', '.join(f'`{k}`' for k in payload_data.keys())
-            description += f"*Keys:* {keys_list}\n"
-
-        # Build embed fields for each key-value pair
-        fields = []
-        if isinstance(payload_data, dict):
-            for key, value in list(payload_data.items())[:10]:  # Limit to first 10 fields
-                # Format value for display
-                if isinstance(value, (dict, list)):
-                    value_str = json.dumps(value, indent=2)
+            # Add user ping to content
+            if USER_ID:
+                existing_content = discord_payload.get('content', '')
+                ping = f'<@{USER_ID}>'
+                # Add ping, preserving any existing content
+                if existing_content:
+                    discord_payload['content'] = f'{ping} {existing_content}'
                 else:
-                    value_str = str(value)
+                    discord_payload['content'] = ping
+                print(f'Added user ping: {USER_ID}')
 
-                # Truncate if too long
-                if len(value_str) > 1024:
-                    value_str = value_str[:1021] + '...'
+            # Extract info for logging
+            if 'embeds' in discord_payload and discord_payload['embeds']:
+                title = discord_payload['embeds'][0].get('title', 'Unknown')
+                print(f'Forwarding AOTR notification: {title}')
+        else:
+            # Not Discord format - create debug embed for analysis
+            print('⚠️ Non-Discord format detected - creating debug embed')
+            json_str = json.dumps(payload_data, indent=2)
 
-                fields.append({
-                    'name': f'📋 {key}',
-                    'value': f'```json\n{value_str}\n```',
+            description = "**Received non-standard webhook payload**\n\n"
+            description += f"*Total keys:* `{len(payload_data) if isinstance(payload_data, dict) else 'N/A'}`\n"
+
+            if isinstance(payload_data, dict):
+                keys_list = ', '.join(f'`{k}`' for k in payload_data.keys())
+                description += f"*Keys:* {keys_list}\n"
+
+            embed = {
+                'title': '🔍 Debug: Unexpected Payload Format',
+                'description': description,
+                'color': 15158332,  # Red for unexpected format
+                'fields': [{
+                    'name': '📦 Payload',
+                    'value': f'```json\n{json_str[:1000]}\n```',
                     'inline': False
-                })
+                }],
+                'timestamp': datetime.now().isoformat(),
+                'footer': {'text': 'AOTR Listener • Vercel'}
+            }
 
-        # Create Discord payload
-        embed = {
-            'title': '🔍 AOTR Webhook Payload Received',
-            'description': description,
-            'color': 3447003,  # Blue color for debugging
-            'fields': fields,
-            'timestamp': datetime.now().isoformat(),
-            'footer': {'text': 'AOTR Listener • Debug Mode • Vercel'}
-        }
+            discord_payload = {'embeds': [embed]}
 
-        # Add full JSON as separate field if not too large
-        if len(json_str) <= 1024:
-            embed['fields'].append({
-                'name': '📦 Complete Payload',
-                'value': f'```json\n{json_str}\n```',
-                'inline': False
-            })
-
-        discord_payload = {'embeds': [embed]}
-
-        # Add user ping if configured
-        if USER_ID:
-            discord_payload['content'] = f'<@{USER_ID}> New AOTR webhook received!'
-            print(f'Pinging user: {USER_ID}')
-
-        print(f'Sending payload analysis to Discord...')
+            if USER_ID:
+                discord_payload['content'] = f'<@{USER_ID}> Unexpected webhook format received'
 
         # Send to Discord
         data = json.dumps(discord_payload).encode('utf-8')
