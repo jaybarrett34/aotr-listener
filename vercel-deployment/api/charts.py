@@ -217,7 +217,8 @@ def create_time_line_chart(runs: List[Dict]) -> str:
         data = [0]
     else:
         labels = [f"Run {i+1}" for i in range(len(runs))]
-        data = [run['time_seconds'] / 60 for run in runs if run['time_seconds']]  # Convert to minutes
+        # Convert to minutes, handle None values as 0
+        data = [(run['time_seconds'] or 0) / 60 for run in runs]
 
     chart_config = {
         'type': 'line',
@@ -283,7 +284,8 @@ def create_level_line_chart(runs: List[Dict]) -> str:
         data = [0]
     else:
         labels = [f"Run {i+1}" for i in range(len(runs))]
-        data = [run['level'] for run in runs if run['level']]
+        # Handle None values as 0
+        data = [run['level'] or 0 for run in runs]
 
     chart_config = {
         'type': 'line',
@@ -348,7 +350,8 @@ def create_gold_line_chart(runs: List[Dict]) -> str:
         data = [0]
     else:
         labels = [f"Run {i+1}" for i in range(len(runs))]
-        data = [run['rewards_gold'] for run in runs if run['rewards_gold']]
+        # Handle None values as 0
+        data = [run['rewards_gold'] or 0 for run in runs]
 
     chart_config = {
         'type': 'line',
@@ -415,7 +418,8 @@ def create_gems_line_chart(runs: List[Dict]) -> str:
         data = [0]
     else:
         labels = [f"Run {i+1}" for i in range(len(runs))]
-        data = [run['rewards_gems'] for run in runs if run['rewards_gems']]
+        # Handle None values as 0
+        data = [run['rewards_gems'] or 0 for run in runs]
 
     chart_config = {
         'type': 'line',
