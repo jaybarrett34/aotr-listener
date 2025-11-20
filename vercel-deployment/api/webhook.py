@@ -69,37 +69,48 @@ class handler(BaseHTTPRequestHandler):
             # Parse request body
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
+
+            # Log raw body for debugging
+            print('=' * 80)
+            print('RAW WEBHOOK PAYLOAD RECEIVED:')
+            print(body.decode())
+            print('=' * 80)
+
             data = json.loads(body.decode())
 
-            # Extract event details
-            event_type = data.get('event_type', 'unknown')
-            item_name = data.get('item_name', 'Unknown Item')
-            item_type = data.get('item_type', 'item')
-            additional_info = data.get('info', '')
+            # Log parsed JSON with pretty formatting
+            print('PARSED JSON PAYLOAD:')
+            print(json.dumps(data, indent=2))
+            print('=' * 80)
 
-            # Send to Discord
-            success = send_discord_notification(
-                event_type, item_name, item_type, additional_info
-            )
+            # Send entire payload to Discord for analysis
+            success = send_discord_notification(data)
 
             if success:
                 self._send_json(200, {
                     'status': 'success',
-                    'message': 'Notification sent to Discord'
+                    'message': 'Notification sent to Discord',
+                    'received_payload': data
                 })
             else:
                 self._send_json(500, {
-                    'error': 'Failed to send Discord notification'
+                    'error': 'Failed to send Discord notification',
+                    'received_payload': data
                 })
 
-        except json.JSONDecodeError:
-            self._send_json(400, {'error': 'Invalid JSON'})
+        except json.JSONDecodeError as e:
+            print(f'JSON Decode Error: {e}')
+            print(f'Raw body: {body.decode() if body else "empty"}')
+            self._send_json(400, {'error': 'Invalid JSON', 'details': str(e)})
         except Exception as e:
+            print(f'Unexpected error: {type(e).__name__}: {e}')
+            import traceback
+            print(traceback.format_exc())
             self._send_json(500, {'error': str(e)})
 
 
-def send_discord_notification(event_type, item_name, item_type, additional_info):
-    """Send notification to Discord."""
+def send_discord_notification(payload_data):
+    """Send notification to Discord with raw payload data."""
     try:
         # Log webhook URL (masked for security)
         if DISCORD_WEBHOOK_URL:
@@ -109,47 +120,67 @@ def send_discord_notification(event_type, item_name, item_type, additional_info)
             print('ERROR: DISCORD_WEBHOOK_URL is empty!')
             return False
 
-        # Emoji mapping
-        emoji_map = {
-            'serum': '💉',
-            'mythic': '⭐',
-            'legendary': '🔥',
-            'epic': '💜',
-            'rare': '💙'
-        }
+        # Format the JSON payload for Discord (limit to 1024 chars per field)
+        json_str = json.dumps(payload_data, indent=2)
 
-        emoji = emoji_map.get(item_type.lower(), '🎁')
+        # Build description with payload preview
+        description = "**Received AOTR Webhook - Analyzing Payload Structure**\n\n"
+        description += f"*Total keys received:* `{len(payload_data) if isinstance(payload_data, dict) else 'N/A'}`\n"
 
-        # Build embed fields
-        fields = [
-            {'name': 'Event', 'value': event_type.upper(), 'inline': True},
-            {'name': 'Item', 'value': item_name, 'inline': True},
-            {'name': 'Type', 'value': item_type.title(), 'inline': True}
-        ]
+        # List all top-level keys
+        if isinstance(payload_data, dict):
+            keys_list = ', '.join(f'`{k}`' for k in payload_data.keys())
+            description += f"*Keys:* {keys_list}\n"
 
-        if additional_info:
-            fields.append({'name': 'Info', 'value': additional_info, 'inline': False})
+        # Build embed fields for each key-value pair
+        fields = []
+        if isinstance(payload_data, dict):
+            for key, value in list(payload_data.items())[:10]:  # Limit to first 10 fields
+                # Format value for display
+                if isinstance(value, (dict, list)):
+                    value_str = json.dumps(value, indent=2)
+                else:
+                    value_str = str(value)
+
+                # Truncate if too long
+                if len(value_str) > 1024:
+                    value_str = value_str[:1021] + '...'
+
+                fields.append({
+                    'name': f'📋 {key}',
+                    'value': f'```json\n{value_str}\n```',
+                    'inline': False
+                })
 
         # Create Discord payload
-        payload = {
-            'embeds': [{
-                'title': f'{emoji} AOTR Notification',
-                'color': 16766720,  # Gold
-                'fields': fields,
-                'timestamp': datetime.now().isoformat(),
-                'footer': {'text': 'AOTR Listener • Vercel'}
-            }]
+        embed = {
+            'title': '🔍 AOTR Webhook Payload Received',
+            'description': description,
+            'color': 3447003,  # Blue color for debugging
+            'fields': fields,
+            'timestamp': datetime.now().isoformat(),
+            'footer': {'text': 'AOTR Listener • Debug Mode • Vercel'}
         }
+
+        # Add full JSON as separate field if not too large
+        if len(json_str) <= 1024:
+            embed['fields'].append({
+                'name': '📦 Complete Payload',
+                'value': f'```json\n{json_str}\n```',
+                'inline': False
+            })
+
+        discord_payload = {'embeds': [embed]}
 
         # Add user ping if configured
         if USER_ID:
-            payload['content'] = f'<@{USER_ID}>'
+            discord_payload['content'] = f'<@{USER_ID}> New AOTR webhook received!'
             print(f'Pinging user: {USER_ID}')
 
-        print(f'Sending to Discord: {item_name} ({item_type})')
+        print(f'Sending payload analysis to Discord...')
 
         # Send to Discord
-        data = json.dumps(payload).encode('utf-8')
+        data = json.dumps(discord_payload).encode('utf-8')
         req = url_request.Request(
             DISCORD_WEBHOOK_URL,
             data=data,
