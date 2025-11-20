@@ -208,6 +208,13 @@ def send_discord_notification(payload_data):
     try:
         # Import database and stats modules
         try:
+            # Add current directory to path for Vercel serverless environment
+            import sys
+            from pathlib import Path
+            current_dir = Path(__file__).parent
+            if str(current_dir) not in sys.path:
+                sys.path.insert(0, str(current_dir))
+
             from database import (
                 parse_aotr_payload,
                 save_run,

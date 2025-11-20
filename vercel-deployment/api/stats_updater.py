@@ -5,10 +5,17 @@ Creates and updates the stats message in Discord with charts and statistics.
 """
 
 import json
+import sys
+from pathlib import Path
 from urllib import request as url_request
 from urllib.error import HTTPError, URLError
 from datetime import datetime
 from typing import Optional
+
+# Add current directory to path for Vercel serverless environment
+current_dir = Path(__file__).parent
+if str(current_dir) not in sys.path:
+    sys.path.insert(0, str(current_dir))
 
 from database import (
     get_drops_summary,
