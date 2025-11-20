@@ -235,10 +235,14 @@ def send_discord_notification(payload_data):
         data = json.dumps(discord_payload).encode('utf-8')
         print(f'Payload size: {len(data)} bytes')
 
+        # Set proper User-Agent to avoid Cloudflare blocking (error 1010)
         req = url_request.Request(
             DISCORD_WEBHOOK_URL,
             data=data,
-            headers={'Content-Type': 'application/json'}
+            headers={
+                'Content-Type': 'application/json',
+                'User-Agent': 'AOTR-Listener/1.0 (Discord Webhook Forwarder)'
+            }
         )
 
         try:
