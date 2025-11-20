@@ -128,19 +128,42 @@ def send_discord_notification(payload_data):
 
         if is_discord_format:
             print('✅ Detected native Discord webhook format from AOTR')
-            # Use the payload as-is, just add user ping if configured
-            discord_payload = payload_data.copy()
+
+            # Use deep copy to avoid any reference issues
+            import copy
+            discord_payload = copy.deepcopy(payload_data)
+
+            # Clean up empty string fields in embeds (Discord may reject these)
+            if 'embeds' in discord_payload:
+                for embed in discord_payload['embeds']:
+                    # Remove empty description
+                    if 'description' in embed and embed['description'] == '':
+                        del embed['description']
+                    # Remove empty title (though this is less likely)
+                    if 'title' in embed and embed['title'] == '':
+                        del embed['title']
+                print('Cleaned up empty embed fields')
 
             # Add user ping to content
             if USER_ID:
                 existing_content = discord_payload.get('content', '')
                 ping = f'<@{USER_ID}>'
                 # Add ping, preserving any existing content
-                if existing_content:
+                if existing_content and existing_content.strip():
                     discord_payload['content'] = f'{ping} {existing_content}'
                 else:
                     discord_payload['content'] = ping
                 print(f'Added user ping: {USER_ID}')
+            elif 'content' in discord_payload and discord_payload['content'] == '':
+                # Remove empty content if no user ping
+                del discord_payload['content']
+
+            # Validate the payload structure
+            if 'embeds' in discord_payload:
+                print(f'Embed count: {len(discord_payload["embeds"])}')
+                for i, embed in enumerate(discord_payload['embeds']):
+                    print(f'Embed {i}: title={embed.get("title", "no title")}, '
+                          f'fields={len(embed.get("fields", []))}')
 
             # Extract info for logging
             if 'embeds' in discord_payload and discord_payload['embeds']:
@@ -176,8 +199,15 @@ def send_discord_notification(payload_data):
             if USER_ID:
                 discord_payload['content'] = f'<@{USER_ID}> Unexpected webhook format received'
 
+        # Log exactly what we're sending to Discord
+        print('FINAL PAYLOAD BEING SENT TO DISCORD:')
+        print(json.dumps(discord_payload, indent=2))
+        print('=' * 80)
+
         # Send to Discord
         data = json.dumps(discord_payload).encode('utf-8')
+        print(f'Payload size: {len(data)} bytes')
+
         req = url_request.Request(
             DISCORD_WEBHOOK_URL,
             data=data,
