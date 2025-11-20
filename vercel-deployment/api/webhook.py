@@ -133,7 +133,7 @@ def send_discord_notification(payload_data):
             import copy
             discord_payload = copy.deepcopy(payload_data)
 
-            # Clean up empty string fields in embeds (Discord may reject these)
+            # Clean up empty string fields and fix malformed markdown in embeds
             if 'embeds' in discord_payload:
                 for embed in discord_payload['embeds']:
                     # Remove empty description
@@ -142,7 +142,19 @@ def send_discord_notification(payload_data):
                     # Remove empty title (though this is less likely)
                     if 'title' in embed and embed['title'] == '':
                         del embed['title']
-                print('Cleaned up empty embed fields')
+
+                    # Fix malformed backticks in fields
+                    # Discord only supports 1 or 3 backticks, not 2, 4, or more
+                    if 'fields' in embed:
+                        for field in embed['fields']:
+                            if 'value' in field and isinstance(field['value'], str):
+                                import re
+                                # Replace 4+ consecutive backticks with 3 (code block)
+                                field['value'] = re.sub(r'`{4,}', '```', field['value'])
+                                # Replace exactly 2 backticks with 1 (inline code)
+                                field['value'] = re.sub(r'(?<!`)``(?!`)', '`', field['value'])
+
+                print('Cleaned up empty embed fields and fixed malformed backticks')
 
             # Add user ping to content
             if USER_ID:
