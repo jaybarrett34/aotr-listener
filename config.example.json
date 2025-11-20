@@ -1,0 +1,6 @@
+{
+  "discord_webhook_url": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+  "user_id": "YOUR_USER_ID_HERE",
+  "webhook_port": 8080,
+  "webhook_secret": "optional_secret_for_security"
+}
