@@ -2,6 +2,8 @@
 
 Get Discord notifications when you gain serum/mythic items in 5 minutes!
 
+**🚀 Want zero hosting?** See [DEPLOY.md](DEPLOY.md) for cloud options (no local hosting required!)
+
 ## 🚀 Quick Setup
 
 ### 1. Create Discord Webhook (2 minutes)

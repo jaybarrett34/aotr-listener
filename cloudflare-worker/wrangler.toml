@@ -1,0 +1,16 @@
+name = "aotr-listener"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Environment variables (set these in Cloudflare dashboard or use wrangler secret)
+# Don't put actual values here - use: wrangler secret put <KEY>
+#
+# Required:
+# - DISCORD_WEBHOOK_URL: Your Discord webhook URL
+# - USER_ID: Your Discord user ID to ping
+#
+# Optional:
+# - WEBHOOK_SECRET: Secret for authenticating requests
+
+# Uncomment and customize if you want a custom subdomain
+# route = "aotr-listener.YOUR-SUBDOMAIN.workers.dev/*"

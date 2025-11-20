@@ -6,21 +6,36 @@ A lightweight webhook listener that sends Discord notifications when you gain se
 
 **⚡ Quick Start:** See [QUICKSTART.md](QUICKSTART.md) for 5-minute setup guide.
 
-## Two Versions Available
+**☁️ Zero Hosting Required:** See [DEPLOY.md](DEPLOY.md) for cloud deployment options (no local hosting!)
 
-### 1. **webhook_listener.py** (RECOMMENDED)
-- ✅ **Zero external dependencies** - Python standard library only
-- ✅ **More secure** - No third-party packages
-- ✅ **Simpler setup** - No bot token needed
-- ✅ Uses Discord incoming webhooks
-- ⚡ **Fastest to set up** - See [QUICKSTART.md](QUICKSTART.md)
+## Deployment Options
 
-### 2. **discord_bot.py** (Advanced)
-- Requires discord.py and Flask
-- Full Discord bot with commands
-- More complex but more features
+### ⭐ Option 1: Direct to Discord (SIMPLEST - No Hosting!)
+- ✅ **Zero hosting required** - Discord hosts everything!
+- ✅ **30-second setup** - Just copy/paste code
+- ✅ **Most secure** - Fewest moving parts
+- 📄 See [direct_to_discord.py](direct_to_discord.py) or [DEPLOY.md](DEPLOY.md)
 
-**For most users, use webhook_listener.py** - it's simpler, more secure, and does everything you need.
+### ☁️ Option 2: Cloudflare Workers (FREE Cloud Hosting)
+- ✅ **Free hosting** - 100K requests/day
+- ✅ **Global CDN** - Super fast worldwide
+- ✅ **Better security** - Webhook URL stays hidden
+- 📄 See [cloudflare-worker/](cloudflare-worker/) or [DEPLOY.md](DEPLOY.md)
+
+### 🔷 Option 3: Vercel (FREE Cloud Hosting)
+- ✅ **Free hosting** with GitHub auto-deploy
+- ✅ **Nice dashboard** for monitoring
+- ✅ **Zero local hosting**
+- 📄 See [vercel-deployment/](vercel-deployment/) or [DEPLOY.md](DEPLOY.md)
+
+### 💻 Option 4: Local Hosting (Advanced)
+- Requires running webhook_listener.py on your Mac
+- More control but requires local process
+- 📄 See setup below
+
+**👉 For most users: Start with Option 1 (Direct to Discord)**
+
+See [DEPLOY.md](DEPLOY.md) for detailed comparison and setup guides!
 
 ## Features
 

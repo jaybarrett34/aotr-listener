@@ -39,3 +39,10 @@ wheels/
 # OS
 .DS_Store
 Thumbs.db
+
+# Vercel
+.vercel
+
+# Cloudflare
+.wrangler/
+wrangler.toml.backup
